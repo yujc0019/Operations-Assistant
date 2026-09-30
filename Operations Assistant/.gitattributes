@@ -1,0 +1,32 @@
+# 按内容自动识别文本/二进制，文本入库统一存 LF
+* text=auto
+
+# 源码与配置强制 LF，屏蔽 Windows 下 core.autocrlf 对工作区的改写
+*.py   text eol=lf
+*.ts   text eol=lf
+*.tsx  text eol=lf
+*.css  text eol=lf
+*.html text eol=lf
+*.md   text eol=lf
+*.json text eol=lf
+*.yaml text eol=lf
+*.yml  text eol=lf
+*.sql  text eol=lf
+
+# 二进制不参与换行转换与 diff
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.pdf  binary
+*.docx binary
+*.zip  binary
+*.woff binary
+*.woff2 binary
+
+# 无扩展名的点文件同样固定 LF
+.gitignore     text eol=lf
+.gitattributes text eol=lf
+.env.example   text eol=lf
+
