@@ -236,7 +236,7 @@ export function useDeepAgentSession() {
   }, [isRunning, refreshFiles, sessionPath]);
 
   const submitTask = useCallback(
-    async (query: string) => {
+    async (query: string, tool: string = "auto") => {
       const cleanQuery = query.trim();
       if (!cleanQuery) {
         throw new Error("请输入运维问题");
@@ -248,7 +248,7 @@ export function useDeepAgentSession() {
       setResult("");
       setLastError("");
       try {
-        const response = await startTask(cleanQuery, threadId);
+        const response = await startTask(cleanQuery, threadId, tool);
         if (response.thread_id && response.thread_id !== threadId) {
           storeThreadId(response.thread_id);
           setThreadId(response.thread_id);

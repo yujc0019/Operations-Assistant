@@ -14,7 +14,7 @@ import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 import uvicorn
 from fastapi import (
@@ -98,6 +98,9 @@ class TaskRequest(BaseModel):
     query: str
     # 前端可以显式传 null 表示新建会话，因此类型必须允许 None
     thread_id: Optional[str] = None
+    # 定向工具模式：auto 走主智能体自由编排，其余值强制路由到对应助手；
+    # 用 Literal 让非法取值在请求校验阶段就被 422 拒绝，而不是静默降级
+    tool: Literal["auto", "log", "metrics", "command", "kb"] = "auto"
 
 
 def _check_thread_id(thread_id: str) -> str:
@@ -153,7 +156,7 @@ async def run_task(request: TaskRequest):
         old_task.cancel()
 
     # create_task 把长耗时 Agent 执行交给事件循环，接口本身不用等待最终结果
-    task = asyncio.create_task(run_deep_agent(request.query, thread_id))
+    task = asyncio.create_task(run_deep_agent(request.query, thread_id, tool=request.tool))
     active_tasks[thread_id] = task
     task.add_done_callback(lambda finished_task: _forget_task(thread_id, finished_task))
 

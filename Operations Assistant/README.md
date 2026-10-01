@@ -55,6 +55,9 @@
   - `Tavily` 负责互联网公开资料检索。
   - `RAGFlow` 负责查询内部非结构化文档。
   - 上传附件由主智能体通过文件工具读取。
+- **定向工具模式**
+  - 侧边栏四个常用工具（日志分析/监控查询/命令助手/知识库）各自是独立的对话模式，后端把问题定向路由给对应助手；
+  - 监控查询走真实 Prometheus 数据（PromQL 即时/区间查询）；命令助手检索内置命令库（含风险等级），未命中时由 AI 生成并标注提醒；
 - **对话式运维问答前端**
   - 欢迎页内置故障排查、日志分析、配置命令、知识问答等示例问题，一键预填；
   - 对话历史保存在浏览器本地，可随时回看和继续提问。
@@ -104,6 +107,8 @@ API 通信层      FastAPI server.py（健康检查 / 任务 / 上传 / 下载 /
 | 主智能体       | 任务规划、助手调度、结果汇总、文件交付   | `read_file_content`、`generate_markdown`、`convert_md_to_pdf` |
 | 网络搜索助手   | 查询互联网公开信息、新闻、政策和网页资料 | `internet_search`                                             |
 | RAGFlow 助手   | 发现可用知识库助手，并向内部知识库提问   | `get_assistant_list`、`create_ask_delete`                     |
+| 监控查询助手   | 自然语言转 PromQL，查询监控指标与趋势    | `query_prometheus`                                            |
+| 命令助手       | 检索内置命令库，讲解命令与操作步骤       | `search_commands`                                             |
 
 ## 🛠️ 项目技术栈
 
@@ -127,7 +132,7 @@ API 通信层      FastAPI server.py（健康检查 / 任务 / 上传 / 下载 /
 ops-assistant/
 ├── app/
 │   ├── agent/
-│   │   ├── subagents/              # 网络搜索、RAGFlow 两个子智能体
+│   │   ├── subagents/              # 网络搜索、RAGFlow、监控查询、命令助手四个子智能体
 │   │   ├── llm.py                  # OpenAI 兼容模型初始化
 │   │   ├── main_agent.py           # 主智能体组装与 run_deep_agent 执行入口
 │   │   └── prompts.py              # 读取 app/prompt/prompts.yml
@@ -136,9 +141,10 @@ ops-assistant/
 │   │   ├── monitor.py              # 工具调用、助手调用、结果和异常事件推送
 │   │   └── server.py               # FastAPI 健康检查、任务、上传、文件、下载、WebSocket 接口
 │   ├── prompt/
-│   │   └── prompts.yml             # 主智能体和子智能体提示词配置
+│   │   ├── prompts.yml             # 主智能体和子智能体提示词配置
+│   │   └── commands.yml            # 内置运维命令库（命令助手数据源）
 │   ├── ragflow/                    # RAGFlow 配置和基础调用示例
-│   ├── tools/                      # Tavily、RAGFlow、文件读取、Markdown、PDF 工具
+│   ├── tools/                      # Tavily、RAGFlow、监控查询、命令库检索、文件读取、Markdown、PDF 工具
 │   ├── utils/                      # 路径解析、Markdown/PDF 底层转换等普通 Python 工具
 │   ├── output/                     # 运行时生成：每个会话的 Markdown、PDF 等产物
 │   └── updated/                    # 运行时生成：用户上传文件的会话暂存目录
@@ -195,6 +201,12 @@ TAVILY_API_KEY=你的_TAVILY_API_KEY
 # RAGFlow 配置
 RAGFLOW_API_URL=http://your-ragflow-host
 RAGFLOW_API_KEY=ragflow-your-api-key
+
+# Prometheus 监控配置（Prometheus 兼容 API，VictoriaMetrics / Thanos 也可）
+# 未配置时「监控查询」工具会提示数据源未配置，其余功能不受影响
+PROMETHEUS_URL=http://prometheus:9090
+# 可选：需要认证时填写 JSON 对象字符串，例如 {"Authorization": "Bearer xxx"}
+PROMETHEUS_HEADERS=
 ```
 
 ### 5. 准备 RAGFlow 知识库

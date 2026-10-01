@@ -15,7 +15,9 @@ from langgraph.checkpoint.memory import InMemorySaver
 
 from app.agent.llm import model
 from app.agent.prompts import main_agent_content
+from app.agent.subagents.command_assistant_agent import command_assistant_agent
 from app.agent.subagents.knowledge_base_agent import knowledge_base_agent
+from app.agent.subagents.metrics_query_agent import metrics_query_agent
 from app.agent.subagents.network_search_agent import network_search_agent
 from app.api.context import (
     reset_session_context,
@@ -31,7 +33,7 @@ from app.tools.upload_file_read_tool import read_file_content
 
 # 主智能体是调度中心：
 # 1. tools 只放最终交付相关的文件工具
-# 2. subagents 放网络搜索、RAGFlow 知识库两类信息获取助手
+# 2. subagents 放网络搜索、RAGFlow、监控查询、命令四类助手
 # 3. checkpointer 通过 thread_id 保存同一会话中的执行上下文
 #    InMemorySaver 只存在进程内存里且不会淘汰，服务长时间运行会随会话数线性变胖；
 #    教学场景够用，换成持久化 checkpointer（如 SqliteSaver）即可回收
@@ -40,14 +42,46 @@ main_agent = create_deep_agent(
     system_prompt=main_agent_content["system_prompt"],
     tools=[generate_markdown, convert_md_to_pdf, read_file_content],
     checkpointer=InMemorySaver(),
-    subagents=[network_search_agent, knowledge_base_agent],
+    subagents=[
+        network_search_agent,
+        knowledge_base_agent,
+        metrics_query_agent,
+        command_assistant_agent,
+    ],
 )
+
+# 前端「常用工具」定向模式：tool 参数 -> 注入给主智能体的强制路由指令。
+# 四条指令保持同一形状：先说明本次必须使用什么，再逐一列出禁用的助手。
+# 采用提示词级路由：不新建执行链路，只在用户消息前追加约束，命中后模型只会调度指定助手
+TOOL_DIRECTIVES = {
+    "log": (
+        "【定向模式：日志分析】本次问题必须且只能通过读取当前会话工作目录中"
+        "用户上传的日志文件来分析：先用 read_file_content 读取日志内容，"
+        "统计错误级别分布与高频异常，再给出根因分析和处置建议。"
+        "禁止调用网络搜索助手、RAGFlow助手、监控查询助手和命令助手。"
+        "如果工作目录中没有日志文件，请提示用户先上传。"
+    ),
+    "metrics": (
+        "【定向模式：监控查询】本次问题必须且只使用「监控查询助手」查询"
+        "Prometheus 监控数据后回答。"
+        "禁止调用网络搜索助手、RAGFlow助手和命令助手。"
+    ),
+    "command": (
+        "【定向模式：命令助手】本次问题必须且只使用「命令助手」检索内置命令库后回答。"
+        "禁止调用网络搜索助手、RAGFlow助手和监控查询助手。"
+    ),
+    "kb": (
+        "【定向模式：知识库】本次问题必须且只使用「RAGFlow助手」回答："
+        "先 get_assistant_list 确认可用助手，再向最匹配的助手提问。"
+        "禁止调用网络搜索助手、监控查询助手和命令助手。"
+    ),
+}
 
 # 当前文件位于 app/agent/main_agent.py，parents[1] 即 app 目录
 project_root_path = Path(__file__).parents[1].resolve()
 
 
-async def run_deep_agent(task_query, session_id):
+async def run_deep_agent(task_query, session_id, tool="auto"):
     """
     异步流式执行主智能体
 
@@ -55,6 +89,7 @@ async def run_deep_agent(task_query, session_id):
     复制上传文件、写入 ContextVar，并在流式执行过程中把关键事件上报给前端。
     :param task_query: 前端提交的原始任务问题
     :param session_id: 当前任务 ID，同时用于 thread_id、输出目录和 WebSocket 定向推送
+    :param tool: 定向工具模式（log/metrics/command/kb）；auto 或非法值走自由编排
     """
     print(f"[MainAgent] 开始执行会话，session_id={session_id}")
 
@@ -109,6 +144,10 @@ async def run_deep_agent(task_query, session_id):
     4. 若存在上传文件，请先分析内容
     """
 
+    # 前端「常用工具」定向模式：把强制路由指令追加到用户消息；
+    # tool 为 auto 或未识别值时为空串，走主智能体自由编排
+    tool_directive = TOOL_DIRECTIVES.get(tool, "")
+
     # 模型在一次任务里可能多轮输出文本（先交代计划、拿到工具结果后再写总结）。
     # 前端收到 task_result 就会把状态切回“已完成”，所以这里只留最后一条，等流结束再上报。
     last_answer = ""
@@ -116,7 +155,7 @@ async def run_deep_agent(task_query, session_id):
     try:
         # astream 会持续产出模型节点、工具节点和子智能体节点的状态片段
         async for chunk in main_agent.astream(
-            {"messages": [{"role": "user", "content": task_query + path_instruction}]},
+            {"messages": [{"role": "user", "content": task_query + path_instruction + tool_directive}]},
             config=config,
         ):
             # chunk 形如 {"model": {"messages": [...]}}，这里主要关心模型最新消息

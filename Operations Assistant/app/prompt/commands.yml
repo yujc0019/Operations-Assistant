@@ -1,0 +1,320 @@
+# 内置运维命令库：命令助手的数据源
+# 字段说明：
+#   id: 唯一标识；category: 分类；scene: 适用场景（用户视角的口语化描述）
+#   command: 命令本体；description: 参数与输出说明
+#   risk: 风险等级 low（只读）/ medium（会改变状态）/ high（可能中断服务，务必确认后执行）
+#   example: 可直接复制的示例；tags: 检索关键词（供 search_commands 匹配）
+
+commands:
+  # ---- 进程与资源 ----
+  - id: cpu-usage-top
+    category: 进程与资源
+    scene: 查看 CPU 占用最高的进程
+    command: "ps aux --sort=-%cpu | head -n 10"
+    description: "按 CPU 占用降序列出前 10 个进程，包含用户、PID、CPU%、内存% 和完整命令行"
+    risk: low
+    example: "ps aux --sort=-%cpu | head -n 10"
+    tags: [cpu, 进程, 占用, top, 性能]
+
+  - id: mem-usage-top
+    category: 进程与资源
+    scene: 查看内存占用最高的进程
+    command: "ps aux --sort=-%mem | head -n 10"
+    description: "按内存占用降序列出前 10 个进程；RSS 为物理内存，VSZ 为虚拟内存"
+    risk: low
+    example: "ps aux --sort=-%mem | head -n 10"
+    tags: [内存, 进程, 占用, mem, 性能]
+
+  - id: kill-process
+    category: 进程与资源
+    scene: 终止指定进程
+    command: "kill -15 <PID>"
+    description: "先发 SIGTERM 让进程优雅退出；确认无效后再用 kill -9 <PID> 强制终止"
+    risk: high
+    example: "kill -15 12345"
+    tags: [kill, 终止, 进程, 结束]
+
+  - id: find-process-by-port
+    category: 进程与资源
+    scene: 查看某个端口被哪个进程占用
+    command: "ss -lntp | grep :<PORT>"
+    description: "列出监听指定端口的进程，输出含 PID 和进程名；<PORT> 换成实际端口号"
+    risk: low
+    example: "ss -lntp | grep :8080"
+    tags: [端口, 占用, listening, 网络, 进程]
+
+  - id: system-resource-overview
+    category: 进程与资源
+    scene: 快速查看系统整体资源（CPU/内存/磁盘）
+    command: "free -h && df -h / && uptime"
+    description: "内存使用、根分区磁盘使用和系统负载一行看清；uptime 的 load average 除以 CPU 核数大于 1 说明 CPU 压力大"
+    risk: low
+    example: "free -h && df -h / && uptime"
+    tags: [内存, 磁盘, 负载, 系统资源, 概览]
+
+  # ---- 磁盘与文件 ----
+  - id: disk-usage-sorted
+    category: 磁盘与文件
+    scene: 查看磁盘空间占用
+    command: "df -h"
+    description: "以人类可读单位显示各挂载点的总量、已用、可用和使用率"
+    risk: low
+    example: "df -h"
+    tags: [磁盘, 空间, df, 容量]
+
+  - id: dir-size-sorted
+    category: 磁盘与文件
+    scene: 找出目录下占用空间最大的子目录
+    command: "du -h --max-depth=1 <目录> | sort -rh | head -n 10"
+    description: "统计一级子目录大小并降序排列，快速定位磁盘空间去哪了"
+    risk: low
+    example: "du -h --max-depth=1 /var | sort -rh | head -n 10"
+    tags: [目录, 大小, du, 空间分析, 清理]
+
+  - id: find-large-files
+    category: 磁盘与文件
+    scene: 查找超过指定大小的大文件
+    command: "find <目录> -type f -size +100M -exec ls -lh {} \\; 2>/dev/null"
+    description: "查找大于 100M 的文件并列出详情；可按需调整 -size 阈值"
+    risk: low
+    example: "find /var/log -type f -size +100M -exec ls -lh {} \\; 2>/dev/null"
+    tags: [大文件, find, 清理, 磁盘]
+
+  - id: clean-log-files
+    category: 磁盘与文件
+    scene: 清理已压缩的旧日志释放空间
+    command: "find <日志目录> -name '*.gz' -mtime +7 -delete"
+    description: "删除 7 天前的 .gz 压缩日志；执行前建议先把 -delete 换成 -print 预览将被删除的文件"
+    risk: medium
+    example: "find /var/log/nginx -name '*.gz' -mtime +7 -delete"
+    tags: [日志, 清理, 删除, 磁盘空间]
+
+  - id: file-content-search
+    category: 磁盘与文件
+    scene: 在文件内容中搜索关键字
+    command: "grep -rn --include='*.log' '<关键字>' <目录>"
+    description: "递归搜索目录下日志文件中包含关键字的行，-n 显示行号"
+    risk: low
+    example: "grep -rn --include='*.log' 'ERROR' /var/log/app"
+    tags: [grep, 搜索, 关键字, 日志, 查找]
+
+  # ---- 网络诊断 ----
+  - id: port-connectivity
+    category: 网络诊断
+    scene: 测试目标主机端口是否可达
+    command: "curl -sv --connect-timeout 3 telnet://<HOST>:<PORT> -o /dev/null 2>&1 | grep Connected"
+    description: "3 秒内能连上会输出 Connected 行；比 telnet 更通用，不需要额外安装"
+    risk: low
+    example: "curl -sv --connect-timeout 3 telnet://db.example.com:3306 -o /dev/null 2>&1 | grep Connected"
+    tags: [端口, 连通性, 测试, 网络, curl]
+
+  - id: http-health-check
+    category: 网络诊断
+    scene: 检查 HTTP 服务状态和响应耗时
+    command: "curl -s -o /dev/null -w 'HTTP %{http_code} 总耗时 %{time_total}s\\n' <URL>"
+    description: "返回状态码和总耗时，适合健康检查和初步性能判断"
+    risk: low
+    example: "curl -s -o /dev/null -w 'HTTP %{http_code} 总耗时 %{time_total}s\\n' http://localhost:8080/health"
+    tags: [http, 健康检查, curl, 接口, 耗时]
+
+  - id: dns-lookup
+    category: 网络诊断
+    scene: 查看域名解析结果
+    command: "dig +short <域名>"
+    description: "输出域名解析到的 IP；为空说明解析异常，可换 dig <域名> 看完整解析链路"
+    risk: low
+    example: "dig +short api.example.com"
+    tags: [dns, 域名, 解析, dig]
+
+  - id: listen-ports
+    category: 网络诊断
+    scene: 查看本机所有监听端口
+    command: "ss -lntup"
+    description: "列出所有 TCP/UDP 监听端口及对应进程；排查服务是否真的起来了"
+    risk: low
+    example: "ss -lntup"
+    tags: [端口, 监听, ss, 网络, 服务状态]
+
+  - id: network-interfaces
+    category: 网络诊断
+    scene: 查看网卡 IP 配置
+    command: "ip -br addr"
+    description: "简洁模式列出每张网卡的 IP 和状态，比 ifconfig 信息更干净"
+    risk: low
+    example: "ip -br addr"
+    tags: [ip, 网卡, 地址, 网络]
+
+  - id: route-table
+    category: 网络诊断
+    scene: 查看路由表确认出口路径
+    command: "ip route"
+    description: "显示路由表，default 行是默认网关；排查流量走错网卡时先看这里"
+    risk: low
+    example: "ip route"
+    tags: [路由, 网关, route, 网络]
+
+  - id: tcp-connection-count
+    category: 网络诊断
+    scene: 统计各状态的 TCP 连接数
+    command: "ss -ant | awk 'NR>1 {count[$1]++} END {for (s in count) print s, count[s]}'"
+    description: "统计 ESTAB/CLOSE-WAIT/TIME-WAIT 等状态的连接数；CLOSE-WAIT 异常多通常意味着应用未正确关闭连接"
+    risk: low
+    example: "ss -ant | awk 'NR>1 {count[$1]++} END {for (s in count) print s, count[s]}'"
+    tags: [tcp, 连接, close-wait, 统计, 网络]
+
+  # ---- 日志查看 ----
+  - id: tail-follow-log
+    category: 日志查看
+    scene: 实时滚动查看日志
+    command: "tail -f <日志文件>"
+    description: "持续输出新增日志行；配合 grep 可过滤：tail -f app.log | grep ERROR"
+    risk: low
+    example: "tail -f /var/log/nginx/error.log"
+    tags: [日志, tail, 实时, 跟踪]
+
+  - id: recent-errors
+    category: 日志查看
+    scene: 查看最近的错误日志
+    command: "grep -iE 'error|exception|fatal' <日志文件> | tail -n 50"
+    description: "提取最近的错误相关行；-i 忽略大小写，可按需调整 tail 行数"
+    risk: low
+    example: "grep -iE 'error|exception|fatal' /var/log/app/app.log | tail -n 50"
+    tags: [错误, 日志, error, 排查, grep]
+
+  - id: log-error-count-by-hour
+    category: 日志查看
+    scene: 统计每小时错误数量看趋势
+    command: "grep -i 'error' <日志文件> | awk '{print substr($4,2,13)}' | sort | uniq -c"
+    description: "按小时聚合错误行数，快速判断错误是持续发生还是集中爆发（假设日志为常见的时间戳开头格式）"
+    risk: low
+    example: "grep -i 'error' /var/log/app/app.log | awk '{print substr($4,2,13)}' | sort | uniq -c"
+    tags: [日志, 统计, 趋势, 错误, 分析]
+
+  - id: journalctl-service
+    category: 日志查看
+    scene: 查看 systemd 服务的日志
+    command: "journalctl -u <服务名> -n 100 --no-pager"
+    description: "查看指定服务最近 100 行日志；加 -f 实时跟踪，加 --since '1 hour ago' 限定时间范围"
+    risk: low
+    example: "journalctl -u nginx -n 100 --no-pager"
+    tags: [journalctl, systemd, 服务, 日志]
+
+  # ---- 服务管理 ----
+  - id: service-status
+    category: 服务管理
+    scene: 查看服务运行状态
+    command: "systemctl status <服务名>"
+    description: "显示服务是否运行、主进程 PID、内存占用和最近日志片段"
+    risk: low
+    example: "systemctl status nginx"
+    tags: [systemd, 服务, 状态, status]
+
+  - id: service-restart
+    category: 服务管理
+    scene: 重启系统服务
+    command: "systemctl restart <服务名>"
+    description: "重启指定服务；建议先 status 确认问题再 restart，重启后用 status 验证结果"
+    risk: high
+    example: "systemctl restart nginx"
+    tags: [systemd, 重启, restart, 服务]
+
+  - id: nginx-reload
+    category: 服务管理
+    scene: Nginx 改完配置后平滑重载
+    command: "nginx -t && systemctl reload nginx"
+    description: "先 -t 校验配置语法，通过后 reload 平滑加载（不断连接）；配置有错时不会执行重载"
+    risk: medium
+    example: "nginx -t && systemctl reload nginx"
+    tags: [nginx, reload, 重载, 配置, 平滑]
+
+  - id: nginx-config-test
+    category: 服务管理
+    scene: 校验 Nginx 配置文件语法
+    command: "nginx -t"
+    description: "检查主配置及 include 的所有配置文件语法；改配置后必做"
+    risk: low
+    example: "nginx -t"
+    tags: [nginx, 配置, 语法, 校验]
+
+  # ---- Docker 容器 ----
+  - id: docker-ps
+    category: Docker 容器
+    scene: 查看容器运行状态
+    command: "docker ps -a"
+    description: "列出所有容器（含已退出的）；STATUS 列的 Up / Exited (code) 是第一判断点"
+    risk: low
+    example: "docker ps -a"
+    tags: [docker, 容器, 状态, ps]
+
+  - id: docker-logs
+    category: Docker 容器
+    scene: 查看容器日志
+    command: "docker logs --tail 100 <容器名或ID>"
+    description: "查看容器最近 100 行 stdout/stderr 日志；加 -f 实时跟踪"
+    risk: low
+    example: "docker logs --tail 100 my-app"
+    tags: [docker, 日志, logs, 容器]
+
+  - id: docker-stats
+    category: Docker 容器
+    scene: 查看容器资源占用
+    command: "docker stats --no-stream"
+    description: "输出各容器的 CPU、内存、网络 IO 占用；判断容器是否资源吃紧"
+    risk: low
+    example: "docker stats --no-stream"
+    tags: [docker, 资源, stats, 性能, 容器]
+
+  - id: docker-exec-shell
+    category: Docker 容器
+    scene: 进入容器内部排查
+    command: "docker exec -it <容器名或ID> sh"
+    description: "在容器内打开交互 shell；容器没有 bash 时用 sh；退出用 exit"
+    risk: medium
+    example: "docker exec -it my-app sh"
+    tags: [docker, exec, 进入容器, shell]
+
+  # ---- Kubernetes ----
+  - id: k8s-get-pods
+    category: Kubernetes
+    scene: 查看 Pod 运行状态
+    command: "kubectl get pods -n <命名空间>"
+    description: "列出指定命名空间的 Pod；重点看 READY 列和 STATUS 列（Running/Pending/CrashLoopBackOff）"
+    risk: low
+    example: "kubectl get pods -n default"
+    tags: [k8s, kubectl, pod, 状态]
+
+  - id: k8s-describe-pod
+    category: Kubernetes
+    scene: 排查 Pod 调度或启动失败原因
+    command: "kubectl describe pod <Pod名> -n <命名空间>"
+    description: "查看 Pod 事件和详情；Pending 看 Events 里的调度失败原因，CrashLoopBackOff 看容器退出原因"
+    risk: low
+    example: "kubectl describe pod my-app-7d9c6b5f-x2k9p -n default"
+    tags: [k8s, describe, pod, pending, 事件, 排查]
+
+  - id: k8s-pod-logs
+    category: Kubernetes
+    scene: 查看 Pod 日志
+    command: "kubectl logs <Pod名> -n <命名空间> --tail=100"
+    description: "查看容器日志最近 100 行；加 -p 看上一次崩溃的日志，多容器 Pod 加 -c 指定容器"
+    risk: low
+    example: "kubectl logs my-app-7d9c6b5f-x2k9p -n default --tail=100"
+    tags: [k8s, logs, pod, 日志]
+
+  - id: k8s-get-events
+    category: Kubernetes
+    scene: 查看集群近期事件
+    command: "kubectl get events -n <命名空间> --sort-by='.lastTimestamp'"
+    description: "按时间排序列出事件，调度失败、镜像拉取失败、探针失败都会出现在这里"
+    risk: low
+    example: "kubectl get events -n default --sort-by='.lastTimestamp'"
+    tags: [k8s, events, 事件, 排查]
+
+  - id: k8s-port-forward
+    category: Kubernetes
+    scene: 本地调试集群内服务
+    command: "kubectl port-forward svc/<服务名> <本地端口>:<服务端口> -n <命名空间>"
+    description: "把集群内服务转发到本地端口，浏览器或 curl 直接访问；Ctrl+C 结束转发"
+    risk: low
+    example: "kubectl port-forward svc/my-app 8080:80 -n default"
+    tags: [k8s, port-forward, 调试, 转发]

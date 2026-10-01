@@ -60,7 +60,11 @@ export async function fetchHealth(): Promise<HealthResponse> {
   return requestJson<HealthResponse>(apiUrl("/api/health"));
 }
 
-export async function startTask(query: string, threadId: string): Promise<TaskResponse> {
+export async function startTask(
+  query: string,
+  threadId: string,
+  tool: string = "auto"
+): Promise<TaskResponse> {
   return requestJson<TaskResponse>(apiUrl("/api/task"), {
     method: "POST",
     headers: {
@@ -68,7 +72,8 @@ export async function startTask(query: string, threadId: string): Promise<TaskRe
     },
     body: JSON.stringify({
       query,
-      thread_id: threadId
+      thread_id: threadId,
+      tool
     })
   });
 }

@@ -13,16 +13,33 @@ import {
 } from "@ant-design/icons";
 import { Button, Tooltip } from "antd";
 import { useEffect, useRef, useState } from "react";
-import type { ReactNode } from "react";
-import { formatClock } from "../lib/datetime";
+import type { ReactNode } from "react";import { formatClock } from "../lib/datetime";
 import { getDownloadUrl } from "../lib/api";
-import { OPS_EXAMPLES } from "../lib/opsTopics";
+import { getToolModeMeta, OPS_EXAMPLES } from "../lib/opsTopics";
 import { MarkdownRenderer } from "./MarkdownRenderer";
 import type { ChatTurn, MonitorMessage, OutputFile } from "../types";
 
 interface ConversationThreadProps {
+  /** 当前激活的定向模式标识；null 表示普通模式 */
+  activeMode?: string | null;
   onUseExample: (prompt: string) => void;
   turns: ChatTurn[];
+}
+
+/** 欢迎页顶部 Hero：普通模式显示 >_ 徽标，工具模式显示工具图标 */
+function WelcomeHero({ icon, subtitle, title }: { icon?: ReactNode; subtitle: string; title: string }) {
+  return (
+    <div className="welcome-hero">
+      <span
+        className={icon ? "welcome-logo welcome-logo--tool" : "welcome-logo"}
+        aria-hidden
+      >
+        {icon ?? <span className="logo-glyph">&gt;_</span>}
+      </span>
+      <h1>{title}</h1>
+      <p>{subtitle}</p>
+    </div>
+  );
 }
 
 function formatBytes(value: number): string {
@@ -323,19 +340,48 @@ function AssistantMessage({
 }
 
 export function ConversationThread({
+  activeMode,
   onUseExample,
   turns,
 }: ConversationThreadProps) {
+  const modeMeta = getToolModeMeta(activeMode);
+
   if (turns.length === 0) {
+    // 定向模式下展示该工具的专属引导和示例问题
+    if (modeMeta) {
+      return (
+        <div className="welcome">
+          <WelcomeHero
+            icon={modeMeta.icon}
+            subtitle={modeMeta.description}
+            title={modeMeta.toolName}
+          />
+
+          <div className="welcome-examples">
+            <h2>你可以这样开始</h2>
+            <div className="mode-examples" aria-label="模式示例问题">
+              {modeMeta.examples.map((example) => (
+                <button
+                  className="mode-example"
+                  key={example}
+                  onClick={() => onUseExample(example)}
+                  type="button"
+                >
+                  “{example}”
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="welcome">
-        <div className="welcome-hero">
-          <span className="welcome-logo" aria-hidden>
-            <span className="logo-glyph">&gt;_</span>
-          </span>
-          <h1>运维问答助手</h1>
-          <p>基于运维知识库和日志数据，为您提供专业、准确的运维问题解答。</p>
-        </div>
+        <WelcomeHero
+          subtitle="基于运维知识库和日志数据，为您提供专业、准确的运维问题解答。"
+          title="运维问答助手"
+        />
 
         <div className="welcome-examples">
           <h2>您可以这样问我</h2>
@@ -369,6 +415,11 @@ export function ConversationThread({
             <div className="message-bubble">
               <div className="message-meta">
                 <span>你</span>
+                {turn.tool ? (
+                  <span className="mode-tag" aria-label="发起模式">
+                    {getToolModeMeta(turn.tool)?.toolName ?? turn.tool}
+                  </span>
+                ) : null}
                 <time dateTime={turn.timestamp}>
                   {formatClock(turn.timestamp)}
                 </time>

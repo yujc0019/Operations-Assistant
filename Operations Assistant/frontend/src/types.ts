@@ -78,6 +78,8 @@ export interface ChatTurn {
   filesTruncated: boolean;
   isRunning: boolean;
   result: string;
+  /** 发起该回合时的定向工具模式（log/metrics/command/kb）；普通模式为空 */
+  tool?: string;
   error?: string;
   timestamp: string;
 }

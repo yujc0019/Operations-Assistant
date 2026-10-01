@@ -17,6 +17,8 @@ interface ChatComposerProps {
   onQueryChange: (value: string) => void;
   onSubmit: () => void;
   onUpload: (items: UploadedItem[]) => Promise<void> | void;
+  /** 输入框占位文案；定向模式下由 App 传入对应工具的提示语 */
+  placeholder?: string;
   query: string;
   stagedItems: UploadedItem[];
   uploadedItems: UploadedItem[];
@@ -57,6 +59,7 @@ export function ChatComposer({
   onStagedItemsChange,
   onSubmit,
   onUpload,
+  placeholder = "请输入您的运维问题，支持自然语言提问...",
   query,
   stagedItems,
   uploadedItems
@@ -117,7 +120,7 @@ export function ChatComposer({
               onSubmit();
             }
           }}
-          placeholder="请输入您的运维问题，支持自然语言提问..."
+          placeholder={placeholder}
           value={query}
         />
 

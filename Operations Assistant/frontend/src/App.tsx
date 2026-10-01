@@ -3,7 +3,10 @@ import { useEffect, useRef, useState } from "react";
 import { ChatComposer } from "./components/ChatComposer";
 import { ConversationThread } from "./components/ConversationThread";
 import { Sidebar } from "./components/Sidebar";
+import { ToolModeBanner } from "./components/ToolModeBanner";
 import { useBackendHealth } from "./hooks/useBackendHealth";
+import { getToolModeMeta } from "./lib/opsTopics";
+import type { ToolModeMeta } from "./lib/opsTopics";
 import {
   deriveSessionTitle,
   getSession,
@@ -16,7 +19,7 @@ import type { SessionRecord } from "./lib/sessions";
 import { useDeepAgentSession } from "./hooks/useDeepAgentSession";
 import type { ChatTurn, UploadedItem } from "./types";
 
-function createTurn(content: string): ChatTurn {
+function createTurn(content: string, tool?: string): ChatTurn {
   return {
     id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`,
     content,
@@ -25,6 +28,7 @@ function createTurn(content: string): ChatTurn {
     filesTruncated: false,
     isRunning: true,
     result: "",
+    tool,
     timestamp: new Date().toISOString()
   };
 }
@@ -35,6 +39,8 @@ export default function App() {
   const [stagedItems, setStagedItems] = useState<UploadedItem[]>([]);
   const [turns, setTurns] = useState<ChatTurn[]>([]);
   const [sessions, setSessions] = useState<SessionRecord[]>(() => listSessions());
+  // 当前激活的定向工具模式；null 表示普通模式（主智能体自由编排）
+  const [activeTool, setActiveTool] = useState<ToolModeMeta | null>(null);
   const streamRef = useRef<HTMLElement | null>(null);
   const session = useDeepAgentSession();
   const health = useBackendHealth();
@@ -107,12 +113,13 @@ export default function App() {
       return;
     }
 
-    const nextTurn = createTurn(cleanQuery);
+    const toolMode = activeTool?.mode;
+    const nextTurn = createTurn(cleanQuery, toolMode);
     setTurns((previous) => [...previous, nextTurn]);
     setQuery("");
 
     try {
-      await session.submitTask(cleanQuery);
+      await session.submitTask(cleanQuery, toolMode ?? "auto");
       message.success("任务已启动，执行过程会显示在对话中");
     } catch (error) {
       setTurns((previous) =>
@@ -150,6 +157,8 @@ export default function App() {
   }
 
   function handleNewSession() {
+    // 模式是主动进入的浏览上下文：新建会话视为离开当前模式，回到普通对话
+    setActiveTool(null);
     session.resetSession();
     setTurns([]);
     clearComposerState();
@@ -166,6 +175,8 @@ export default function App() {
       return;
     }
 
+    // 与新建会话同理：切换会话即退出当前模式；历史回合的 tool 标签仅作展示
+    setActiveTool(null);
     session.switchSession(threadId);
     setTurns(markTurnsIdle(record.turns));
     clearComposerState();
@@ -185,16 +196,19 @@ export default function App() {
   return (
     <div className="chat-app-shell">
       <Sidebar
+        activeMode={activeTool?.mode ?? null}
         currentThreadId={session.threadId}
         health={health}
         sessions={sessions}
         onDeleteSession={handleDeleteSession}
+        onActivateTool={(mode) => setActiveTool(getToolModeMeta(mode))}
         onNewSession={handleNewSession}
         onSwitchSession={handleSwitchSession}
-        onUseTool={setQuery}
       />
 
       <main className="chat-main">
+        {activeTool ? <ToolModeBanner meta={activeTool} onExit={() => setActiveTool(null)} /> : null}
+
         {session.lastError ? (
           <Alert
             action={
@@ -213,6 +227,7 @@ export default function App() {
 
         <section className="chat-stream-panel" ref={streamRef}>
           <ConversationThread
+            activeMode={activeTool?.mode ?? null}
             onUseExample={setQuery}
             turns={turns}
           />
@@ -228,6 +243,7 @@ export default function App() {
           onStagedItemsChange={setStagedItems}
           onSubmit={handleSubmit}
           onUpload={handleUpload}
+          placeholder={activeTool?.placeholder}
           query={query}
           stagedItems={stagedItems}
           uploadedItems={session.uploadedItems}

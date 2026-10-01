@@ -331,6 +331,17 @@ textarea {
   color: var(--accent);
 }
 
+/* 当前激活的定向模式工具项 */
+.tool-item--active {
+  background: rgba(31, 201, 161, 0.12);
+  color: var(--text);
+}
+
+.tool-item--active .anticon,
+.tool-item--active:hover .anticon {
+  color: var(--accent);
+}
+
 .sidebar-status-card {
   display: grid;
   gap: 6px;
@@ -379,12 +390,66 @@ textarea {
 .chat-main {
   position: relative;
   z-index: 1;
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
   height: 100dvh;
   min-height: 100dvh;
   overflow: hidden;
   padding: 20px 28px 0;
+}
+
+/* ============ 定向模式标签条 ============ */
+
+.tool-mode-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 860px;
+  width: 100%;
+  margin: 0 auto 12px;
+  border: 1px solid rgba(31, 201, 161, 0.35);
+  border-radius: var(--radius-md);
+  background: rgba(31, 201, 161, 0.1);
+  padding: 8px 12px;
+}
+
+.tool-mode-icon {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  border: 1px solid rgba(31, 201, 161, 0.4);
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 14px;
+}
+
+.tool-mode-name {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 700;
+  flex: 0 0 auto;
+}
+
+.tool-mode-desc {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tool-mode-exit {
+  flex: 0 0 auto;
+  color: var(--muted) !important;
+}
+
+.tool-mode-exit:hover {
+  color: var(--red) !important;
 }
 
 .chat-alert {
@@ -394,6 +459,7 @@ textarea {
 }
 
 .chat-stream-panel {
+  flex: 1 1 auto;
   min-height: 0;
   max-width: 860px;
   width: 100%;
@@ -430,6 +496,14 @@ textarea {
   border-radius: 16px;
   background: var(--surface);
   box-shadow: var(--shadow);
+}
+
+/* 工具模式欢迎页：logo 位显示工具图标 */
+.welcome-logo--tool {
+  color: var(--accent);
+  border-color: rgba(31, 201, 161, 0.4);
+  background: var(--accent-soft);
+  font-size: 28px;
 }
 
 .welcome-logo .logo-glyph {
@@ -528,6 +602,33 @@ textarea {
   line-height: 1.5;
 }
 
+/* 工具模式欢迎页的示例问题列表 */
+.mode-examples {
+  display: grid;
+  gap: 10px;
+}
+
+.mode-example {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text-2);
+  font-size: 13px;
+  line-height: 1.6;
+  cursor: pointer;
+  padding: 12px 14px;
+  text-align: left;
+  transition: border-color 160ms ease, background 160ms ease;
+}
+
+.mode-example:hover,
+.mode-example:focus-visible {
+  border-color: rgba(31, 201, 161, 0.45);
+  background: var(--surface-2);
+  color: var(--text);
+  outline: none;
+}
+
 /* ============ 对话消息流 ============ */
 
 .conversation-thread {
@@ -603,6 +704,19 @@ textarea {
   margin-bottom: 8px;
   color: var(--muted);
   font-size: 12px;
+}
+
+/* 用户消息旁的定向模式小标签 */
+.mode-tag {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  border: 1px solid rgba(31, 201, 161, 0.35);
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 11px;
+  padding: 0 8px;
 }
 
 .chat-message--user .message-meta {

@@ -5,12 +5,14 @@ import type { SessionRecord } from "../lib/sessions";
 import type { BackendHealth } from "../hooks/useBackendHealth";
 
 interface SidebarProps {
+  /** 当前激活的定向模式标识；null 表示普通模式 */
+  activeMode: string | null;
   currentThreadId: string;
   health: BackendHealth;
   sessions: SessionRecord[];
   onDeleteSession: (threadId: string) => void;
-  /** 点击常用工具后，把对应的示例问题预填到输入框 */
-  onUseTool: (question: string) => void;
+  /** 点击常用工具：进入对应的定向对话模式 */
+  onActivateTool: (mode: string) => void;
   onNewSession: () => void;
   onSwitchSession: (threadId: string) => void;
 }
@@ -44,11 +46,12 @@ function SidebarGroup({
 }
 
 export function Sidebar({
+  activeMode,
   currentThreadId,
   health,
   sessions,
   onDeleteSession,
-  onUseTool,
+  onActivateTool,
   onNewSession,
   onSwitchSession
 }: SidebarProps) {
@@ -112,9 +115,11 @@ export function Sidebar({
                 {QUICK_TOOLS.map((tool) => (
                   <li key={tool.id}>
                     <button
-                      className="tool-item"
-                      onClick={() => onUseTool(tool.question)}
-                      title={tool.question}
+                      className={
+                        tool.mode === activeMode ? "tool-item tool-item--active" : "tool-item"
+                      }
+                      onClick={() => onActivateTool(tool.mode)}
+                      title={tool.description}
                       type="button"
                     >
                       {tool.icon}
